@@ -1,33 +1,36 @@
 package com.example.moviesapp_azizy;
 
-
-
 public class MyMovieData {
     private String movieName;
     private String movieDate;
-    private Integer movieImage;
-    public MyMovieData(String movieName, String movieDate,
-                       Integer movieImage) {
+    private String movieImage;
+    private String movieDescription;
+    private int movieId;
+
+    public MyMovieData(int movieId, String movieName, String movieDate, String movieImage) {
+        this.movieId = movieId;
         this.movieName = movieName;
         this.movieDate = movieDate;
         this.movieImage = movieImage;
     }
+
+    public int getMovieId() {
+        return movieId;
+    }
+
     public String getMovieName() {
         return movieName;
     }
-    public void setMovieName(String movieName) {
-        this.movieName = movieName;
-    }
+
     public String getMovieDate() {
         return movieDate;
     }
-    public void setMovieDate(String movieDate) {
-        this.movieDate = movieDate;
-    }
-    public Integer getMovieImage() {
+
+    public String getMovieImage() {
         return movieImage;
     }
-    public void setMovieImage(Integer movieImage) {
-        this.movieImage = movieImage;
+
+    public String getMovieDescription() {
+        return movieDescription;
     }
 }

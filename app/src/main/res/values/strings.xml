@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">MoviesApp-Azizy</string>
+    <string name="username_format">Username: %1$s</string>
 </resources>
