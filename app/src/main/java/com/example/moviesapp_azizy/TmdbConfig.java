@@ -4,4 +4,6 @@ public class TmdbConfig {
     public static final String API_KEY = "b1dd59a5827b2a075049aec9ed52e429";
     public static final String BASE_URL = "https://api.themoviedb.org/3/";
     public static final String IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500";
+
+    public static final String GOOGLE_MAPS_API_KEY = "AIzaSyBERodhv-rfFETFHUPAV8gq5Q0X0Di2kRg";
 }

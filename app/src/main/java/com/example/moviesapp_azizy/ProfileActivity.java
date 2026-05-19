@@ -12,7 +12,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.util.SparseArray;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -23,9 +22,20 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.google.android.gms.vision.Frame;
-import com.google.android.gms.vision.face.Face;
-import com.google.android.gms.vision.face.FaceDetector;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
+
+import androidx.core.content.FileProvider;
+import java.util.Date;
+import java.util.Locale;
+import java.text.SimpleDateFormat;
+import android.net.Uri;
+
+import android.media.ExifInterface;
+import android.graphics.Matrix;
 
 public class ProfileActivity extends AppCompatActivity {
 
@@ -35,7 +45,7 @@ public class ProfileActivity extends AppCompatActivity {
     private ImageView ivProfilePicture;
     private TextView tvUsername;
     private Button btnChangePicture, btnGoToMovies;
-    private FaceDetector detector;
+    private String currentPhotoPath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,10 +60,6 @@ public class ProfileActivity extends AppCompatActivity {
         loadUserData();
         loadProfilePicture();
 
-        detector = new FaceDetector.Builder(getApplicationContext())
-                .setTrackingEnabled(false)
-                .setLandmarkType(FaceDetector.ALL_LANDMARKS)
-                .build();
 
         btnChangePicture.setOnClickListener(v -> {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -71,44 +77,101 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void openCamera() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        try {
-            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-        } catch (Exception e) {
-            Toast.makeText(this, "Error: No camera app found.", Toast.LENGTH_SHORT).show();
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show();
+            }
+            if (photoFile != null) {
+                Uri photoURI = FileProvider.getUriForFile(this,
+                        getApplicationContext().getPackageName() + ".fileprovider",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                takePictureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
         }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(null);
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
+        currentPhotoPath = image.getAbsolutePath();
+        return image;
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK && data != null) {
-            Bundle extras = data.getExtras();
-            if (extras != null && extras.get("data") != null) {
-                Bitmap imageBitmap = (Bitmap) extras.get("data");
-                
-                if (detectFace(imageBitmap)) {
-                    ivProfilePicture.setImageBitmap(imageBitmap);
-                    saveProfilePicture(imageBitmap);
-                    Toast.makeText(this, "Face detected! Profile updated.", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(this, "No face detected. Try a clearer selfie.", Toast.LENGTH_LONG).show();
+
+        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
+
+            Bitmap imageBitmap = getScaledBitmap(currentPhotoPath, 1024, 1024);
+
+            if (imageBitmap != null) {
+
+                try {
+                    imageBitmap = rotateImageIfRequired(imageBitmap, currentPhotoPath);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
+
+                detectFaceAndSave(imageBitmap);
+
             } else {
-                Toast.makeText(this, "Failed to capture image.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
             }
         }
     }
 
-    private boolean detectFace(Bitmap bitmap) {
-        if (!detector.isOperational()) {
-            Toast.makeText(this, "Face detector not ready yet. Please wait...", Toast.LENGTH_SHORT).show();
-            return false;
-        }
+    private Bitmap rotateImageIfRequired(Bitmap img, String path) throws IOException {
+        ExifInterface ei = new ExifInterface(path);
+        int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
 
-        Frame frame = new Frame.Builder().setBitmap(bitmap).build();
-        SparseArray<Face> faces = detector.detect(frame);
-        return faces.size() > 0;
+        switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                return rotateImage(img, 90);
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                return rotateImage(img, 180);
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                return rotateImage(img, 270);
+            default:
+                return img;
+        }
     }
+
+    private static Bitmap rotateImage(Bitmap img, int degree) {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(degree);
+        Bitmap rotatedImg = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
+        img.recycle();
+        return rotatedImg;
+    }
+
+    private Bitmap getScaledBitmap(String path, int destWidth, int destHeight) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, options);
+        int srcWidth = options.outWidth;
+        int srcHeight = options.outHeight;
+
+        int inSampleSize = 1;
+        if (srcHeight > destHeight || srcWidth > destWidth) {
+            final int halfHeight = srcHeight / 2;
+            final int halfWidth = srcWidth / 2;
+            while ((halfHeight / inSampleSize) >= destHeight && (halfWidth / inSampleSize) >= destWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        options.inJustDecodeBounds = false;
+        options.inSampleSize = inSampleSize;
+        return BitmapFactory.decodeFile(path, options);
+    }
+
 
     private void saveProfilePicture(Bitmap bitmap) {
         File file = new File(getFilesDir(), "profile_picture.png");
@@ -150,10 +213,56 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString("photoPath", currentPhotoPath);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        currentPhotoPath = savedInstanceState.getString("photoPath");
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (detector != null) {
-            detector.release();
-        }
+    }
+
+    private void detectFaceAndSave(Bitmap bitmap) {
+
+        FaceDetectorOptions options =
+                new FaceDetectorOptions.Builder()
+                        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                        .build();
+
+        FaceDetector detector = FaceDetection.getClient(options);
+
+        InputImage image = InputImage.fromBitmap(bitmap, 0);
+
+        detector.process(image)
+                .addOnSuccessListener(faces -> {
+
+                    if (faces.size() > 0) {
+
+                        ivProfilePicture.setImageBitmap(bitmap);
+                        saveProfilePicture(bitmap);
+
+                        Toast.makeText(this,
+                                "Face detected! Profile updated.",
+                                Toast.LENGTH_SHORT).show();
+
+                    } else {
+
+                        Toast.makeText(this,
+                                "No face detected. Try again.",
+                                Toast.LENGTH_LONG).show();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this,
+                            "Face detection failed",
+                            Toast.LENGTH_SHORT).show();
+                });
     }
 }

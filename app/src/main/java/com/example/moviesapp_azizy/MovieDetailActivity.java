@@ -7,7 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -29,22 +29,21 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.Volley;
 import com.bumptech.glide.Glide;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class MovieDetailActivity extends AppCompatActivity implements OnMapReadyCallback {
-    private SupportMapFragment mapFragment;
     private TextView descriptionTextView;
     private TextView nameTextView;
     private TextView ratingTextView;
@@ -53,10 +52,9 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
     private ProgressBar progressBar;
     private String trailerKey;
     private RequestQueue requestQueue;
-    private Button playButton;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
     private GoogleMap mMap;
-    private List<LatLng> cinemaLocations = new ArrayList<>();
+    private FusedLocationProviderClient fusedLocationClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +68,7 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
         releaseDateTextView = findViewById(R.id.textReleaseDate);
         progressBar = findViewById(R.id.progressBar);
         requestQueue = Volley.newRequestQueue(this);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         int movieId = getIntent().getIntExtra("movieId", -1);
         if (movieId != -1) {
@@ -78,19 +77,10 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
             descriptionTextView.setText("No movie ID provided");
         }
 
-        playButton = findViewById(R.id.playButton);
-        playButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                playTrailer();
-            }
-        });
+        Button playButton = findViewById(R.id.playButton);
+        playButton.setOnClickListener(v -> playTrailer());
 
-        // Mock cinema locations
-        cinemaLocations.add(new LatLng(33.596460, -7.615480));
-        cinemaLocations.add(new LatLng(33.588, -7.611));
-
-        mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         if (mapFragment != null) {
             mapFragment.getMapAsync(this);
         }
@@ -104,69 +94,54 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
 
         JsonObjectRequest movieDetailsRequest = new JsonObjectRequest(
                 Request.Method.GET, movieDetailsUrl, null,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        if (progressBar != null) progressBar.setVisibility(View.GONE);
-                        try {
-                            String movieName = response.getString("title");
-                            String movieDescription = response.getString("overview");
-                            String posterPath = response.getString("poster_path");
-                            double rating = response.optDouble("vote_average", 0.0);
-                            String releaseDate = response.optString("release_date", "N/A");
-                            String imageUrl = TmdbConfig.IMAGE_BASE_URL + posterPath;
+                response -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    try {
+                        String movieName = response.getString("title");
+                        String movieDescription = response.getString("overview");
+                        String posterPath = response.getString("poster_path");
+                        double rating = response.optDouble("vote_average", 0.0);
+                        String releaseDate = response.optString("release_date", "N/A");
+                        String imageUrl = TmdbConfig.IMAGE_BASE_URL + posterPath;
 
-                            nameTextView.setText(movieName);
-                            descriptionTextView.setText(movieDescription);
-                            ratingTextView.setText(String.format("★ %.1f", rating));
-                            releaseDateTextView.setText("Release Date: " + releaseDate);
+                        nameTextView.setText(movieName);
+                        descriptionTextView.setText(movieDescription);
+                        ratingTextView.setText(String.format("★ %.1f", rating));
+                        releaseDateTextView.setText("Release Date: " + releaseDate);
 
-                            Glide.with(MovieDetailActivity.this)
-                                    .load(imageUrl)
-                                    .placeholder(R.drawable.ic_launcher_foreground)
-                                    .into(img);
-                        } catch (JSONException e) {
-                            Log.e(TAG, "JSON Parsing error: " + e.getMessage());
-                        }
+                        Glide.with(MovieDetailActivity.this)
+                                .load(imageUrl)
+                                .placeholder(R.drawable.ic_launcher_foreground)
+                                .into(img);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "JSON Parsing error: " + e.getMessage());
                     }
                 },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        if (progressBar != null) progressBar.setVisibility(View.GONE);
-                        Log.e(TAG, "Error fetching movie details: " + error.getMessage());
-                        descriptionTextView.setText("Failed to fetch movie details. Please check your connection.");
-                    }
+                error -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    descriptionTextView.setText("Failed to fetch movie details.");
                 }
         );
 
         JsonObjectRequest movieVideosRequest = new JsonObjectRequest(
                 Request.Method.GET, movieVideosUrl, null,
-                new Response.Listener<JSONObject>() {
-                    @Override
-                    public void onResponse(JSONObject response) {
-                        try {
-                            if (response.has("results")) {
-                                JSONArray results = response.getJSONArray("results");
-                                for (int i = 0; i < results.length(); i++) {
-                                    JSONObject video = results.getJSONObject(i);
-                                    if (video.getString("type").equals("Trailer") && video.getString("site").equals("YouTube")) {
-                                        trailerKey = video.getString("key");
-                                        break;
-                                    }
+                response -> {
+                    try {
+                        if (response.has("results")) {
+                            JSONArray results = response.getJSONArray("results");
+                            for (int i = 0; i < results.length(); i++) {
+                                JSONObject video = results.getJSONObject(i);
+                                if (video.getString("type").equals("Trailer") && video.getString("site").equals("YouTube")) {
+                                    trailerKey = video.getString("key");
+                                    break;
                                 }
                             }
-                        } catch (JSONException e) {
-                            Log.e(TAG, "JSON Parsing error (videos): " + e.getMessage());
                         }
+                    } catch (JSONException e) {
+                        Log.e(TAG, "JSON Parsing error (videos): " + e.getMessage());
                     }
                 },
-                new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        Log.e(TAG, "Error fetching movie videos: " + error.getMessage());
-                    }
-                }
+                error -> Log.e(TAG, "Error fetching movie videos: " + error.getMessage())
         );
 
         requestQueue.add(movieDetailsRequest);
@@ -180,7 +155,7 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
             intent.putExtra("videoUrl", trailerUrl);
             startActivity(intent);
         } else {
-            Toast.makeText(this, "Trailer not available for this movie", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Trailer not available", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -189,36 +164,46 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
         mMap = googleMap;
         mMap.getUiSettings().setZoomControlsEnabled(true);
         
-        for (LatLng location : cinemaLocations) {
-            mMap.addMarker(new MarkerOptions().position(location).title("Cinema"));
-        }
-
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             mMap.setMyLocationEnabled(true);
-            moveToCurrentLocation();
+            getCurrentLocation();
         } else {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
+
+        mMap.setOnMapClickListener(latLng -> {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) {
+                getCurrentLocation();
+            }
+        });
     }
 
-    private void moveToCurrentLocation() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-            Location location = null;
-            try {
-                location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (location == null) {
-                    location = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                }
-            } catch (SecurityException e) {
-                e.printStackTrace();
-            }
-
-            if (location != null) {
-                LatLng currentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLocation, 12));
-            }
+    private void getCurrentLocation() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
         }
+
+        fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
+            if (location != null) {
+                LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
+
+                mMap.clear();
+                mMap.setMyLocationEnabled(true);
+
+                mMap.addMarker(new MarkerOptions()
+                        .position(userLocation)
+                        .title("You are here")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 14));
+
+                fetchNearbyCinemas(location.getLatitude(), location.getLongitude());
+            } else {
+                Toast.makeText(this, "Active le GPS puis réessaie", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
@@ -228,9 +213,55 @@ public class MovieDetailActivity extends AppCompatActivity implements OnMapReady
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 if (mMap != null && ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     mMap.setMyLocationEnabled(true);
-                    moveToCurrentLocation();
+                    getCurrentLocation();
                 }
             }
         }
+    }
+    private void fetchNearbyCinemas(double latitude, double longitude) {
+        String url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?"
+                + "location=" + latitude + "," + longitude
+                + "&radius=5000"
+                + "&type=movie_theater"
+                + "&key=" + TmdbConfig.GOOGLE_MAPS_API_KEY;
+
+        JsonObjectRequest request = new JsonObjectRequest(
+                Request.Method.GET,
+                url,
+                null,
+                response -> {
+                    try {
+                        JSONArray results = response.getJSONArray("results");
+
+                        for (int i = 0; i < results.length(); i++) {
+                            JSONObject place = results.getJSONObject(i);
+
+                            String name = place.getString("name");
+
+                            JSONObject location = place
+                                    .getJSONObject("geometry")
+                                    .getJSONObject("location");
+
+                            double lat = location.getDouble("lat");
+                            double lng = location.getDouble("lng");
+
+                            mMap.addMarker(new MarkerOptions()
+                                    .position(new LatLng(lat, lng))
+                                    .title(name)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                        }
+
+                        if (results.length() == 0) {
+                            Toast.makeText(this, "Aucun cinéma trouvé près de toi", Toast.LENGTH_SHORT).show();
+                        }
+
+                    } catch (JSONException e) {
+                        Toast.makeText(this, "Erreur lecture cinémas", Toast.LENGTH_SHORT).show();
+                    }
+                },
+                error -> Toast.makeText(this, "Erreur chargement cinémas", Toast.LENGTH_SHORT).show()
+        );
+
+        requestQueue.add(request);
     }
 }

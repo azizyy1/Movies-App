@@ -222,14 +222,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openGoogleMaps(double latitude, double longitude) {
-        Uri gmmIntentUri = Uri.parse("geo:" + latitude + "," + longitude + "?q=cinema");
-        Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
-        mapIntent.setPackage("com.google.android.apps.maps");
+        Uri uri = Uri.parse("geo:" + latitude + "," + longitude + "?q=cinema&z=15");
 
-        if (mapIntent.resolveActivity(getPackageManager()) != null) {
-            startActivity(mapIntent);
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.setPackage("com.google.android.apps.maps");
+
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
         } else {
-            Uri webUri = Uri.parse("https://www.google.com/maps/search/cinema/@" + latitude + "," + longitude + ",15z");
+            Uri webUri = Uri.parse(
+                    "https://www.google.com/maps/search/cinema/@"
+                            + latitude + "," + longitude + ",15z"
+            );
             startActivity(new Intent(Intent.ACTION_VIEW, webUri));
         }
     }
