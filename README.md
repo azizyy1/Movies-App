@@ -40,6 +40,9 @@
 3. S'assurer que les clés API sont bien configurées dans `TmdbConfig.java` et `AndroidManifest.xml`.
 4. Compiler et lancer sur un émulateur ou un appareil physique (Android 7.0+).
 
+## 📄 Documentation et Ressources
+*   **Ressources du Projet :** [Rapport, Simulation et Présentation (Google Drive)](https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K)
+
 ## 📄 Auteur
 *   **Azizy** - [GitHub](https://github.com/azizyy1)
 
