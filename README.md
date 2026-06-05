@@ -41,7 +41,7 @@
 4. Compiler et lancer sur un émulateur ou un appareil physique (Android 7.0+).
 
 ## 📄 Documentation et Ressources
-*   **Ressources du Projet :** [Rapport, Simulation et Présentation (Google Drive)](https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K)
+*   **Ressources du Projet :** [Rapport, Simulation et Présentation (Google Drive)]([https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K](https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K?usp=sharing))
 
 ## 📄 Auteur
 *   **Azizy** - [GitHub](https://github.com/azizyy1)
