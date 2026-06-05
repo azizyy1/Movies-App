@@ -42,7 +42,7 @@
 
 ## ## 📄 Documentation et Ressources
 
-* **Ressources du Projet :** [Rapport, Simulation et Présentation (Google Drive)](https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K?usp=sharing)
+* **Ressources du Projet :** [Rapport et Présentation (Google Drive)](https://drive.google.com/drive/folders/1taq-nja_0ZYav1f9nGSdFcqIpeRuBS5K?usp=sharing)
 
 
 ## 📄 Auteur
